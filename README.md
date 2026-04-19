@@ -85,7 +85,7 @@ This project is deployed using GitHub Pages.
 
 ## Author
 
-[Your Name]
+[Omid Ghadim]
 
 Course: BCS 309 – Algorithms I
 Instructor: Dr. Arash Kermani
