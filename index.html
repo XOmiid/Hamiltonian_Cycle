@@ -1,0 +1,2486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hamiltonian Cycle — NP-Complete Explorer</title>
+<style>
+/* ============================================================
+   CSS VARIABLES & RESET
+   ============================================================ */
+:root {
+  --bg-deep:    #050810;
+  --bg-panel:   #0b0f1a;
+  --bg-card:    #111827;
+  --bg-hover:   #1a2236;
+  --border:     #1e2d45;
+  --border-hi:  #2e4a72;
+  --accent:     #00c8ff;
+  --accent2:    #7c3aed;
+  --accent3:    #10b981;
+  --warn:       #f59e0b;
+  --danger:     #ef4444;
+  --text-hi:    #f0f6ff;
+  --text-md:    #8fa3c0;
+  --text-lo:    #4a5a72;
+  --node-def:   #1e3a5f;
+  --node-hi:    #00c8ff;
+  --node-vis:   #7c3aed;
+  --node-cur:   #f59e0b;
+  --node-done:  #10b981;
+  --edge-def:   #1e2d45;
+  --edge-path:  #00c8ff;
+  --edge-fail:  #ef4444;
+  --edge-done:  #10b981;
+  --font-display: 'Courier New', monospace;
+  --font-body: 'Segoe UI', system-ui, sans-serif;
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.5);
+  --glow: 0 0 20px rgba(0,200,255,0.2);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  background: var(--bg-deep);
+  color: var(--text-hi);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.app-header {
+  background: linear-gradient(135deg, var(--bg-panel) 0%, #0d1525 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 28px;
+  display: flex; align-items: center; gap: 16px;
+  position: sticky; top: 0; z-index: 100;
+}
+.app-header .logo {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--accent);
+  text-shadow: 0 0 18px rgba(0,200,255,0.6);
+  letter-spacing: 2px;
+}
+.app-header .subtitle {
+  font-size: 0.75rem;
+  color: var(--text-md);
+  margin-left: 4px;
+}
+.header-badge {
+  margin-left: auto;
+  background: rgba(124,58,237,0.15);
+  border: 1px solid rgba(124,58,237,0.4);
+  color: #a78bfa;
+  font-size: 0.7rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+/* TAB NAV */
+.tab-nav {
+  display: flex;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  overflow-x: auto;
+}
+.tab-btn {
+  background: none; border: none; color: var(--text-md);
+  padding: 12px 20px; cursor: pointer; font-size: 0.85rem;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s; white-space: nowrap; letter-spacing: 0.5px;
+}
+.tab-btn:hover { color: var(--text-hi); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* MAIN CONTENT */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ============================================================
+   VISUALIZER TAB — TWO COLUMN
+   ============================================================ */
+.viz-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: calc(100vh - 105px);
+  overflow: hidden;
+}
+.viz-controls {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.viz-main {
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.viz-canvas-area {
+  flex: 1; position: relative; overflow: hidden;
+  background: radial-gradient(ellipse at center, #0a1428 0%, var(--bg-deep) 70%);
+}
+#graphSVG {
+  width: 100%; height: 100%;
+  cursor: crosshair;
+}
+.viz-bottom {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  height: 200px;
+  overflow: hidden;
+}
+.bottom-panel {
+  border-right: 1px solid var(--border);
+  padding: 10px 14px;
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.bottom-panel:last-child { border-right: none; }
+.panel-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-lo);
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.panel-label::before {
+  content: '';
+  display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--accent);
+}
+
+/* ============================================================
+   CONTROL WIDGETS
+   ============================================================ */
+.ctrl-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.ctrl-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-lo);
+  margin-bottom: 10px;
+}
+.ctrl-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.ctrl-row:last-child { margin-bottom: 0; }
+
+select, input[type="text"], input[type="number"] {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-hi);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+}
+select:focus, input:focus { border-color: var(--accent); }
+
+label { font-size: 0.78rem; color: var(--text-md); display: block; margin-bottom: 3px; }
+
+.btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-hi);
+  color: var(--text-hi);
+  border-radius: 5px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.15s;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.btn:hover { background: var(--border-hi); border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: rgba(0,200,255,0.12);
+  border-color: rgba(0,200,255,0.4);
+  color: var(--accent);
+}
+.btn.primary:hover { background: rgba(0,200,255,0.22); box-shadow: var(--glow); }
+.btn.danger { border-color: rgba(239,68,68,0.4); color: var(--danger); }
+.btn.danger:hover { background: rgba(239,68,68,0.1); }
+.btn.success { border-color: rgba(16,185,129,0.4); color: var(--accent3); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.slider-wrap { display: flex; align-items: center; gap: 8px; }
+input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  background: var(--border);
+  height: 3px; border-radius: 2px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  background: var(--accent);
+  border-radius: 50%; cursor: pointer;
+}
+.slider-val { font-size: 0.75rem; color: var(--accent); min-width: 28px; text-align: right; }
+
+/* Step counter, status */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.75rem; padding: 4px 10px;
+  border-radius: 20px; border: 1px solid var(--border);
+  background: var(--bg-deep);
+}
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-lo); }
+.status-dot.running { background: var(--accent); animation: pulse 1s infinite; }
+.status-dot.found { background: var(--accent3); }
+.status-dot.failed { background: var(--danger); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.78rem; padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-val { color: var(--accent); font-family: var(--font-display); }
+
+/* WARNING BOX */
+.warn-box {
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  color: var(--warn);
+  display: none;
+}
+.warn-box.show { display: block; }
+
+/* ============================================================
+   GRAPH SVG STYLES
+   ============================================================ */
+.graph-edge { stroke: var(--edge-def); stroke-width: 2; fill: none; transition: all 0.3s; }
+.graph-edge.path  { stroke: var(--edge-path); stroke-width: 3; filter: drop-shadow(0 0 6px var(--accent)); }
+.graph-edge.fail  { stroke: var(--edge-fail); stroke-width: 2.5; opacity: 0.7; }
+.graph-edge.done  { stroke: var(--edge-done); stroke-width: 3.5; filter: drop-shadow(0 0 8px var(--accent3)); }
+.graph-node circle {
+  fill: var(--node-def); stroke: var(--border-hi); stroke-width: 2;
+  transition: all 0.3s; cursor: pointer;
+}
+.graph-node.current circle  { fill: var(--node-cur); stroke: #fbbf24; filter: drop-shadow(0 0 10px #f59e0b); }
+.graph-node.visited circle  { fill: var(--node-vis); stroke: #a78bfa; filter: drop-shadow(0 0 8px #7c3aed); }
+.graph-node.done circle     { fill: var(--node-done); stroke: #34d399; filter: drop-shadow(0 0 10px #10b981); }
+.graph-node.start circle    { fill: #1e4d7b; stroke: var(--accent); filter: drop-shadow(0 0 8px var(--accent)); }
+.graph-node text { fill: var(--text-hi); font-size: 12px; font-weight: 700; pointer-events: none; text-anchor: middle; dominant-baseline: central; }
+.ghost-node circle { fill: rgba(0,200,255,0.1); stroke: var(--accent); stroke-dasharray: 4; }
+
+/* ============================================================
+   PSEUDOCODE
+   ============================================================ */
+.pseudo-line {
+  padding: 2px 8px; border-radius: 3px;
+  font-family: var(--font-display); font-size: 0.72rem;
+  color: var(--text-md); line-height: 1.7;
+  transition: all 0.2s; white-space: pre;
+}
+.pseudo-line.active {
+  background: rgba(0,200,255,0.12);
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+}
+.pseudo-line.comment { color: var(--text-lo); }
+
+/* ============================================================
+   STEP EXPLANATION
+   ============================================================ */
+.step-explanation {
+  font-size: 0.8rem; line-height: 1.6; color: var(--text-md);
+}
+.step-explanation strong { color: var(--accent); }
+.step-explanation .step-tag {
+  display: inline-block; background: rgba(124,58,237,0.2);
+  border: 1px solid rgba(124,58,237,0.4); color: #a78bfa;
+  font-size: 0.65rem; padding: 1px 7px; border-radius: 10px;
+  margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase;
+}
+
+/* ============================================================
+   DP TABLE
+   ============================================================ */
+#dpTable {
+  font-size: 0.65rem; border-collapse: collapse; width: 100%;
+  font-family: var(--font-display);
+}
+#dpTable th, #dpTable td {
+  border: 1px solid var(--border); padding: 2px 5px; text-align: center; color: var(--text-md);
+}
+#dpTable th { background: var(--bg-hover); color: var(--text-lo); font-weight: 600; }
+#dpTable td.active { background: rgba(0,200,255,0.15); color: var(--accent); }
+#dpTable td.done-cell { background: rgba(16,185,129,0.1); color: var(--accent3); }
+
+/* ============================================================
+   THEORY TAB
+   ============================================================ */
+.theory-layout {
+  max-width: 960px; margin: 0 auto; padding: 32px 24px;
+}
+.theory-section {
+  margin-bottom: 32px;
+}
+.theory-h1 {
+  font-family: var(--font-display);
+  font-size: 1.6rem; color: var(--accent);
+  text-shadow: 0 0 20px rgba(0,200,255,0.4);
+  margin-bottom: 4px; letter-spacing: 1px;
+}
+.theory-h2 {
+  font-size: 1.05rem; color: var(--text-hi);
+  border-left: 3px solid var(--accent2);
+  padding-left: 12px; margin-bottom: 14px; margin-top: 20px;
+}
+.theory-h3 { font-size: 0.9rem; color: var(--accent); margin: 12px 0 6px; }
+.theory-p { font-size: 0.85rem; color: var(--text-md); line-height: 1.75; margin-bottom: 10px; }
+.theory-p strong { color: var(--text-hi); }
+.theory-box {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 22px; margin: 14px 0;
+}
+.theory-box.accent { border-color: rgba(0,200,255,0.3); background: rgba(0,200,255,0.04); }
+.theory-box.purple { border-color: rgba(124,58,237,0.3); background: rgba(124,58,237,0.04); }
+.theory-box.green  { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.04); }
+.theory-box.warn   { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.04); }
+
+.def-label {
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--accent); margin-bottom: 8px;
+}
+.math {
+  font-family: var(--font-display); font-size: 0.82rem;
+  color: #a78bfa; background: var(--bg-deep);
+  padding: 10px 16px; border-radius: 5px; margin: 8px 0;
+  border-left: 3px solid var(--accent2);
+}
+.proof-step {
+  display: flex; gap: 12px; margin: 8px 0; align-items: flex-start;
+}
+.proof-num {
+  min-width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(0,200,255,0.15); border: 1px solid var(--accent);
+  color: var(--accent); font-size: 0.7rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 2px;
+}
+.proof-text { font-size: 0.83rem; color: var(--text-md); line-height: 1.65; }
+.proof-text strong { color: var(--text-hi); }
+
+/* Key Concept Boxes */
+.concept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.concept-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px;
+}
+.concept-card .concept-icon {
+  font-size: 1.4rem; margin-bottom: 6px;
+}
+.concept-card h4 { font-size: 0.85rem; color: var(--text-hi); margin-bottom: 6px; }
+.concept-card p { font-size: 0.78rem; color: var(--text-md); line-height: 1.6; }
+
+/* Collapsible */
+.collapsible-btn {
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-hi); padding: 12px 18px; width: 100%;
+  text-align: left; cursor: pointer; border-radius: var(--radius);
+  font-size: 0.85rem; display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 2px; transition: all 0.2s;
+}
+.collapsible-btn:hover { border-color: var(--accent); color: var(--accent); }
+.collapsible-btn .arrow { transition: transform 0.2s; }
+.collapsible-btn.open .arrow { transform: rotate(180deg); }
+.collapsible-body {
+  display: none; background: var(--bg-card);
+  border: 1px solid var(--border); border-top: none;
+  padding: 16px 18px; border-radius: 0 0 var(--radius) var(--radius);
+  margin-bottom: 10px;
+}
+.collapsible-body.open { display: block; }
+
+/* ============================================================
+   NP SECTION SVG REDUCTION DIAGRAM
+   ============================================================ */
+.reduction-diagram {
+  width: 100%; background: var(--bg-deep);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; margin: 14px 0;
+}
+.reduction-svg { width: 100%; height: 260px; }
+
+/* ============================================================
+   COMPARISON TAB
+   ============================================================ */
+.compare-layout {
+  display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 105px); gap: 0;
+}
+.compare-col {
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.compare-col:last-child { border-right: none; }
+.compare-header {
+  background: var(--bg-panel); border-bottom: 1px solid var(--border);
+  padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.compare-header h3 { font-size: 0.9rem; }
+.compare-header h3.bf-color { color: #f59e0b; }
+.compare-header h3.dp-color { color: var(--accent3); }
+.compare-svg-wrap { flex: 1; position: relative; background: radial-gradient(ellipse at center, #0a1428 0%, var(--bg-deep) 70%); overflow: hidden; }
+.compare-svg-wrap svg { width: 100%; height: 100%; }
+.compare-info { background: var(--bg-panel); border-top: 1px solid var(--border); padding: 10px 16px; font-size: 0.8rem; }
+
+/* ============================================================
+   CHART / GROWTH
+   ============================================================ */
+.growth-chart-wrap {
+  padding: 20px 24px;
+}
+.growth-chart-wrap canvas {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); display: block; width: 100%;
+}
+
+/* ============================================================
+   REDUCTION ANIMATION TAB
+   ============================================================ */
+.reduction-layout {
+  max-width: 900px; margin: 0 auto; padding: 24px;
+}
+.reduction-step-nav {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.red-btn {
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-md); padding: 6px 14px; border-radius: 20px;
+  cursor: pointer; font-size: 0.78rem; transition: all 0.2s;
+}
+.red-btn.active { background: rgba(124,58,237,0.2); border-color: var(--accent2); color: #a78bfa; }
+.reduction-canvas {
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px;
+  min-height: 320px; position: relative;
+}
+.reduction-canvas svg { width: 100%; height: 300px; }
+.reduction-desc {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-top: 14px;
+  font-size: 0.83rem; color: var(--text-md); line-height: 1.7;
+}
+.reduction-desc strong { color: var(--accent2); }
+
+/* ============================================================
+   PERFORMANCE / STATS SECTION
+   ============================================================ */
+.perf-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  padding: 20px 24px;
+}
+.perf-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px; text-align: center;
+}
+.perf-card .big-num {
+  font-family: var(--font-display); font-size: 2.2rem;
+  color: var(--accent); line-height: 1;
+  text-shadow: 0 0 20px rgba(0,200,255,0.4);
+}
+.perf-card .big-label { font-size: 0.7rem; color: var(--text-lo); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.perf-card .big-sub { font-size: 0.78rem; color: var(--text-md); margin-top: 8px; }
+
+/* ============================================================
+   NOTIFICATION / TOAST
+   ============================================================ */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--bg-card); border: 1px solid var(--border-hi);
+  border-radius: var(--radius); padding: 12px 18px;
+  font-size: 0.82rem; color: var(--text-hi);
+  box-shadow: var(--shadow); z-index: 9999;
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.3s;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: rgba(16,185,129,0.4); color: var(--accent3); }
+.toast.error   { border-color: rgba(239,68,68,0.4); color: var(--danger); }
+.toast.warning { border-color: rgba(245,158,11,0.4); color: var(--warn); }
+
+/* ============================================================
+   MISC UTILITIES
+   ============================================================ */
+.tag {
+  display: inline-block; font-size: 0.65rem;
+  padding: 2px 8px; border-radius: 10px;
+  text-transform: uppercase; letter-spacing: 1px;
+  background: rgba(0,200,255,0.1); border: 1px solid rgba(0,200,255,0.3);
+  color: var(--accent); margin-right: 4px;
+}
+.tag.purple { background: rgba(124,58,237,0.1); border-color: rgba(124,58,237,0.3); color: #a78bfa; }
+.tag.green  { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: var(--accent3); }
+.tag.warn   { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: var(--warn); }
+
+.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.help-text { font-size: 0.72rem; color: var(--text-lo); margin-top: 4px; }
+
+/* Graph mode indicator */
+.mode-indicator {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(0,0,0,0.6); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 12px; font-size: 0.7rem; color: var(--text-md);
+}
+
+/* ============================================================
+   RESPONSIVE: collapse sidebar on small screens
+   ============================================================ */
+@media (max-width: 768px) {
+  .viz-layout { grid-template-columns: 1fr; }
+  .viz-controls { max-height: 220px; }
+  .viz-bottom { grid-template-columns: 1fr; height: auto; }
+  .concept-grid { grid-template-columns: 1fr; }
+  .compare-layout { grid-template-columns: 1fr; }
+  .perf-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header class="app-header">
+  <div>
+    <div class="logo">HAM_CYCLE<span style="color:#7c3aed">.</span>EXE</div>
+    <div class="subtitle">University NP-Completeness Explorer</div>
+  </div>
+  <div class="header-badge">NP-Complete</div>
+</header>
+
+<!-- ============================================================
+     TAB NAVIGATION
+     ============================================================ -->
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('visualizer')">🔬 Visualizer</button>
+  <button class="tab-btn" onclick="switchTab('theory')">📚 Theory</button>
+  <button class="tab-btn" onclick="switchTab('comparison')">⚖️ Comparison</button>
+  <button class="tab-btn" onclick="switchTab('reduction')">🔁 Reduction</button>
+  <button class="tab-btn" onclick="switchTab('performance')">📈 Performance</button>
+</nav>
+
+<!-- ============================================================
+     TAB: VISUALIZER
+     ============================================================ -->
+<div id="tab-visualizer" class="tab-content active">
+  <div class="viz-layout">
+
+    <!-- LEFT: Controls -->
+    <div class="viz-controls">
+
+      <!-- Graph Presets -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">Preset Graphs</div>
+        <select id="presetSelect" onchange="loadPreset()">
+          <option value="">— Select Preset —</option>
+          <option value="cycle4">4-Cycle (Hamiltonian)</option>
+          <option value="cycle5">5-Cycle (Hamiltonian)</option>
+          <option value="petersen">Petersen-like (No Ham. Cycle)</option>
+          <option value="complete4">K₄ Complete Graph</option>
+          <option value="complete5">K₅ Complete Graph</option>
+          <option value="custom1">Custom: Two Triangles</option>
+        </select>
+      </div>
+
+      <!-- Random Generator -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">Random Generator</div>
+        <div style="margin-bottom:8px">
+          <label>Difficulty</label>
+          <select id="difficultySelect">
+            <option value="small">Small (4–6 nodes)</option>
+            <option value="medium">Medium (7–9 nodes)</option>
+            <option value="large">Large (10–12 nodes)</option>
+          </select>
+        </div>
+        <div class="ctrl-row">
+          <div style="flex:1">
+            <label>Nodes</label>
+            <input type="number" id="nodeCount" value="5" min="3" max="12">
+          </div>
+          <div style="flex:1">
+            <label>Edge %</label>
+            <input type="number" id="edgePct" value="60" min="20" max="100">
+          </div>
+        </div>
+        <button class="btn primary" style="width:100%" onclick="generateRandom()">🎲 Generate Random</button>
+      </div>
+
+      <!-- Algorithm -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">Algorithm</div>
+        <label>Select Algorithm</label>
+        <select id="algorithmSelect" onchange="onAlgoChange()">
+          <option value="brute">Brute Force O(n!)</option>
+          <option value="dp">Held-Karp DP O(2ⁿ·n²)</option>
+        </select>
+        <div class="warn-box" id="perfWarn" style="margin-top:8px">
+          ⚠️ Brute force may be very slow for n &gt; 8. Consider using Held-Karp DP.
+        </div>
+      </div>
+
+      <!-- Playback Controls -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">Playback</div>
+        <button class="btn primary" style="width:100%;margin-bottom:6px" onclick="buildSteps()">▶ Build Steps</button>
+        <div class="btn-grid" style="margin-bottom:6px">
+          <button class="btn" id="btnStep" onclick="stepForward()" disabled>Step ›</button>
+          <button class="btn" id="btnPlay" onclick="togglePlay()" disabled>Play ▷</button>
+        </div>
+        <div class="btn-grid">
+          <button class="btn" id="btnPause" onclick="pausePlay()" disabled>Pause ⏸</button>
+          <button class="btn danger" onclick="resetViz()">Reset ↺</button>
+        </div>
+        <div style="margin-top:10px">
+          <label>Speed</label>
+          <div class="slider-wrap">
+            <input type="range" id="speedSlider" min="1" max="10" value="5">
+            <span class="slider-val" id="speedVal">5</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Options -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">Options</div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:6px">
+          <input type="checkbox" id="showFailed" checked> Show failed paths (red)
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="showBacktrack" checked> Show backtracking
+        </label>
+      </div>
+
+      <!-- Status & Stats -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">Status</div>
+        <div style="margin-bottom:8px">
+          <span class="status-badge">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Ready</span>
+          </span>
+        </div>
+        <div class="stat-row"><span>Step</span><span class="stat-val" id="stepCounter">0 / 0</span></div>
+        <div class="stat-row"><span>Operations</span><span class="stat-val" id="opCounter">0</span></div>
+        <div class="stat-row"><span>Nodes</span><span class="stat-val" id="nodeCountDisplay">0</span></div>
+        <div class="stat-row"><span>Edges</span><span class="stat-val" id="edgeCountDisplay">0</span></div>
+        <div class="stat-row"><span>Algorithm</span><span class="stat-val" id="algoDisplay">—</span></div>
+      </div>
+
+      <!-- Custom Graph Input -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">Custom Graph (Advanced)</div>
+        <label>Nodes (comma separated)</label>
+        <input type="text" id="customNodes" placeholder="0,1,2,3" value="0,1,2,3">
+        <label style="margin-top:6px">Edges (pairs: 0-1,1-2,...)</label>
+        <input type="text" id="customEdges" placeholder="0-1,1-2,2-3,3-0" value="0-1,1-2,2-3,3-0,0-2">
+        <button class="btn" style="width:100%;margin-top:6px" onclick="loadCustom()">Load Custom Graph</button>
+        <div class="help-text">Click on SVG to add nodes interactively. Click two nodes to add edge.</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Visualization -->
+    <div class="viz-main">
+      <div class="viz-canvas-area">
+        <div class="mode-indicator" id="modeIndicator">Click graph to add nodes</div>
+        <svg id="graphSVG" onclick="svgClick(event)">
+          <defs>
+            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" opacity="0.7"/>
+            </marker>
+          </defs>
+          <g id="edgeGroup"></g>
+          <g id="nodeGroup"></g>
+        </svg>
+      </div>
+
+      <!-- Bottom Panels -->
+      <div class="viz-bottom">
+
+        <!-- Pseudocode Panel -->
+        <div class="bottom-panel">
+          <div class="panel-label">Pseudocode</div>
+          <div id="pseudocode"></div>
+        </div>
+
+        <!-- Step Explanation -->
+        <div class="bottom-panel">
+          <div class="panel-label">Step Explanation</div>
+          <div id="stepExplanation" class="step-explanation">
+            <div class="step-tag">Idle</div>
+            <p>Select an algorithm, load a graph, then click <strong>Build Steps</strong> to begin the visualization.</p>
+          </div>
+        </div>
+
+        <!-- DP Table / Path Display -->
+        <div class="bottom-panel">
+          <div class="panel-label" id="rightPanelLabel">Current Path</div>
+          <div id="rightPanel">
+            <div style="font-size:0.78rem;color:var(--text-lo)">No path computed yet.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     TAB: THEORY
+     ============================================================ -->
+<div id="tab-theory" class="tab-content">
+<div class="theory-layout">
+
+  <div class="theory-section">
+    <div class="theory-h1">Hamiltonian Cycle Problem</div>
+    <div class="theory-p">A deep dive into one of the most famous NP-Complete problems in computer science.</div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+      <span class="tag">NP-Complete</span>
+      <span class="tag purple">Graph Theory</span>
+      <span class="tag green">Decision Problem</span>
+    </div>
+  </div>
+
+  <!-- DEFINITION -->
+  <div class="theory-section">
+    <div class="theory-h2">1. Problem Definition</div>
+    <div class="theory-box accent">
+      <div class="def-label">Formal Definition</div>
+      <div class="theory-p">
+        Given an undirected graph <strong>G = (V, E)</strong> where V is the set of vertices and E is the set of edges, does G contain a <strong>Hamiltonian Cycle</strong>?
+      </div>
+      <div class="math">
+        HAM-CYCLE = { ⟨G⟩ : G is an undirected graph that contains a Hamiltonian cycle }
+      </div>
+    </div>
+    <div class="theory-p">A <strong>Hamiltonian Cycle</strong> is a cycle that visits every vertex in the graph <em>exactly once</em> and returns to the starting vertex. This is different from an Eulerian circuit, which traverses every <em>edge</em> exactly once.</div>
+
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="concept-icon">🔵</div>
+        <h4>Hamiltonian Cycle</h4>
+        <p>A cycle v₁ → v₂ → ... → vₙ → v₁ where all vertices are distinct and each consecutive pair (including vₙ, v₁) is connected by an edge.</p>
+      </div>
+      <div class="concept-card">
+        <div class="concept-icon">⭕</div>
+        <h4>Hamiltonian Path</h4>
+        <p>Similar, but does not need to return to the start. A Hamiltonian Path visits every vertex exactly once. Also NP-Complete.</p>
+      </div>
+      <div class="concept-card">
+        <div class="concept-icon">📊</div>
+        <h4>Decision vs Optimization</h4>
+        <p>HAM-CYCLE is a <em>decision problem</em> (yes/no). The optimization variant (TSP) asks for the shortest such cycle. Both are NP-hard.</p>
+      </div>
+      <div class="concept-card">
+        <div class="concept-icon">🗺️</div>
+        <h4>Historical Note</h4>
+        <p>Named after Sir William Rowan Hamilton who invented the Icosian Game in 1857 — a puzzle of finding such a cycle on a dodecahedron graph.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- NP PROOF -->
+  <div class="theory-section">
+    <div class="theory-h2">2. Proof That HAM-CYCLE ∈ NP</div>
+    <div class="theory-p">To show a problem is in NP, we must exhibit a polynomial-time <em>verifier</em> — an algorithm that, given a <em>certificate</em>, can verify in polynomial time whether it constitutes a valid solution.</div>
+
+    <div class="theory-box purple">
+      <div class="def-label">Certificate</div>
+      <div class="theory-p">The certificate for an instance ⟨G⟩ is a sequence of vertices: <strong>⟨v₁, v₂, ..., vₙ⟩</strong> claimed to be a Hamiltonian cycle.</div>
+    </div>
+
+    <div class="theory-h3">Polynomial-Time Verification Algorithm:</div>
+
+    <div class="proof-step"><div class="proof-num">1</div><div class="proof-text"><strong>Length Check:</strong> Verify that the sequence contains exactly |V| vertices. This takes O(|V|) time.</div></div>
+    <div class="proof-step"><div class="proof-num">2</div><div class="proof-text"><strong>Uniqueness Check:</strong> Verify that no vertex appears more than once (all n vertices are distinct). Using a hash set: O(|V|).</div></div>
+    <div class="proof-step"><div class="proof-num">3</div><div class="proof-text"><strong>Coverage Check:</strong> Verify that every vertex in G appears in the sequence. O(|V|) with a hash set.</div></div>
+    <div class="proof-step"><div class="proof-num">4</div><div class="proof-text"><strong>Edge Check:</strong> For each consecutive pair (vᵢ, vᵢ₊₁) and the wrap-around (vₙ, v₁), verify that the edge exists in E. O(|V|) with adjacency set.</div></div>
+
+    <div class="theory-box green">
+      <div class="def-label">Conclusion</div>
+      <div class="theory-p">Total verification time: <strong>O(|V| + |E|)</strong> = polynomial in the size of the input. Therefore <strong>HAM-CYCLE ∈ NP</strong>. ✓</div>
+    </div>
+  </div>
+
+  <!-- NP-COMPLETENESS PROOF -->
+  <div class="theory-section">
+    <div class="theory-h2">3. NP-Completeness via Reduction from Vertex Cover</div>
+    <div class="theory-p">To prove HAM-CYCLE is NP-Complete, we reduce from <strong>VERTEX-COVER</strong> (a known NP-Complete problem) to HAM-CYCLE in polynomial time.</div>
+    <div class="theory-p">This means: <strong>VERTEX-COVER ≤ₚ HAM-CYCLE</strong></div>
+
+    <div class="theory-box warn">
+      <div class="def-label">Vertex Cover (Reminder)</div>
+      <div class="theory-p">Given graph G = (V, E) and integer k, does G have a vertex cover of size k? (A vertex cover is a set S ⊆ V such that for every edge (u,v) ∈ E, at least one of u, v ∈ S.)</div>
+    </div>
+
+    <div class="theory-h3">Construction (Polynomial Reduction):</div>
+    <div class="theory-p">Given instance ⟨G, k⟩ of VERTEX-COVER, construct graph G' as follows:</div>
+
+    <div class="proof-step"><div class="proof-num">1</div><div class="proof-text"><strong>Selector Nodes:</strong> Add k selector nodes s₁, s₂, ..., sₖ arranged in a path, representing the k vertices we will choose for the cover.</div></div>
+    <div class="proof-step"><div class="proof-num">2</div><div class="proof-text"><strong>Cover Gadget per Edge:</strong> For each edge (u,v) in G, create a <em>cover gadget</em> consisting of 12 nodes arranged in 2×6 structure. This gadget ensures the Hamiltonian cycle must "pick a side" — corresponding to either u or v covering this edge.</div></div>
+    <div class="proof-step"><div class="proof-num">3</div><div class="proof-text"><strong>Connection:</strong> Each vertex v in G is connected to all gadgets for edges incident to v. Selector nodes connect to the endpoints of all gadgets, allowing the Hamiltonian cycle to traverse them in order.</div></div>
+
+    <div class="theory-h3">Forward Direction (VC → Ham Cycle):</div>
+    <div class="theory-p">Suppose G has a vertex cover S = {u₁, ..., uₖ} of size k. Construct a Hamiltonian cycle in G' as follows: traverse selector nodes s₁ → ... → sₖ in order. For each selector sᵢ assigned to vertex uᵢ, traverse all gadgets for edges incident to uᵢ from left to right, then return. The cover property ensures every gadget is traversed. Thus G' has a Hamiltonian cycle. ✓</div>
+
+    <div class="theory-h3">Backward Direction (Ham Cycle → VC):</div>
+    <div class="theory-p">Suppose G' has a Hamiltonian cycle H. Since selector nodes form a path, each must be entered/exited through gadgets. Each gadget traversal commits to one "side" (u or v). Collect the vertex corresponding to each selector's traversal choices — this gives a set of k vertices. The gadget structure ensures every edge of G is "covered" by at least one selected vertex. Hence, this is a valid vertex cover of size k in G. ✓</div>
+
+    <div class="theory-box green">
+      <div class="def-label">Complexity of Reduction</div>
+      <div class="theory-p">
+        • Number of selector nodes: k (polynomial in input)<br>
+        • Number of gadgets: |E| (one per edge)<br>
+        • Each gadget has constant size (12 nodes, 14 edges)<br>
+        • Total: O(k + |E|) nodes and edges → <strong>polynomial time</strong> ✓<br><br>
+        Since VERTEX-COVER is NP-Complete and VERTEX-COVER ≤ₚ HAM-CYCLE, and HAM-CYCLE ∈ NP, we conclude <strong>HAM-CYCLE is NP-Complete</strong>. □
+      </div>
+    </div>
+  </div>
+
+  <!-- SIMPLIFIED EXPLANATION -->
+  <div class="theory-section">
+    <div class="theory-h2">4. Simplified Explanation (For Presentations)</div>
+    <button class="collapsible-btn" onclick="toggleCollapsible(this)">
+      📖 What is a Hamiltonian Cycle? (Simple Explanation) <span class="arrow">▼</span>
+    </button>
+    <div class="collapsible-body">
+      <div class="theory-p">Imagine you're a travelling salesperson visiting cities. You want to visit every city <strong>exactly once</strong> and return home. A Hamiltonian Cycle is exactly this tour — a round trip that touches every stop exactly once.</div>
+      <div class="theory-p">The question is: <em>does such a tour exist for a given map of cities?</em></div>
+      <div class="theory-p"><strong>Why is it hard?</strong> With n cities, you'd need to check n! (factorial) possible orderings. For just 20 cities, that's 2,432,902,008,176,640,000 orderings — impossible even for modern computers!</div>
+    </div>
+
+    <button class="collapsible-btn" onclick="toggleCollapsible(this)" style="margin-top:6px">
+      🧠 Why is it NP-Complete? (Simple Explanation) <span class="arrow">▼</span>
+    </button>
+    <div class="collapsible-body">
+      <div class="theory-p"><strong>NP</strong> means: if someone hands you an answer, you can check it quickly (in polynomial time). For Hamiltonian Cycle, if someone says "here's the tour: A→B→C→D→A", you just verify each step is a valid road — easy!</div>
+      <div class="theory-p"><strong>NP-Hard</strong> means: it's at least as hard as the hardest problems in NP. We prove this by showing that if you could solve HAM-CYCLE efficiently, you could also solve Vertex Cover efficiently — and Vertex Cover is already known to be NP-Hard.</div>
+      <div class="theory-p">So HAM-CYCLE is NP-Complete: it's in NP (verifiable quickly) and NP-Hard (as hard as the hardest NP problems).</div>
+    </div>
+
+    <button class="collapsible-btn" onclick="toggleCollapsible(this)" style="margin-top:6px">
+      📝 Worked Example <span class="arrow">▼</span>
+    </button>
+    <div class="collapsible-body">
+      <div class="theory-p"><strong>Graph:</strong> 4 nodes (0,1,2,3), Edges: 0-1, 1-2, 2-3, 3-0, 0-2</div>
+      <div class="theory-p"><strong>Question:</strong> Is there a Hamiltonian Cycle?</div>
+      <div class="math">Check path: 0 → 1 → 2 → 3 → 0
+Edges needed: (0,1)✓ (1,2)✓ (2,3)✓ (3,0)✓
+All edges exist → YES, Hamiltonian Cycle found!</div>
+      <div class="theory-p"><strong>Brute force:</strong> With 4 nodes, we check (4-1)! = 6 permutations (fixing start node 0). Only 1 check finds the cycle — but in general, most won't.</div>
+    </div>
+  </div>
+
+  <!-- ALGORITHMS THEORY -->
+  <div class="theory-section">
+    <div class="theory-h2">5. Algorithm Analysis</div>
+
+    <div class="theory-h3">Brute Force — O(n!)</div>
+    <div class="theory-box">
+      <div class="theory-p">Generate all permutations of vertices starting from node 0. For each permutation, check if consecutive vertices are connected and if the last vertex connects back to the start.</div>
+      <div class="math">Permutations to check: (n-1)!
+For n=10: 362,880 permutations
+For n=15: 87,178,291,200 permutations
+For n=20: 1.2 × 10¹⁷ permutations</div>
+    </div>
+
+    <div class="theory-h3">Held-Karp Dynamic Programming — O(2ⁿ · n²)</div>
+    <div class="theory-box accent">
+      <div class="theory-p">Uses bitmask DP. State: <strong>dp[S][v]</strong> = "can we visit all vertices in set S, ending at vertex v, starting from vertex 0?"</div>
+      <div class="math">dp[{0}][0] = true  (base case)
+dp[S][v] = OR over all u in S\{v} where (u,v)∈E:
+              dp[S\{v}][u]
+Answer: dp[V][0] ∧ (n-1, 0) ∈ E  (where V = all vertices)</div>
+      <div class="theory-p"><strong>States:</strong> 2ⁿ × n &nbsp;&nbsp;<strong>Transitions per state:</strong> O(n) &nbsp;&nbsp;<strong>Total:</strong> O(2ⁿ · n²)</div>
+      <div class="theory-p">For n=20: ≈ 400M operations (vs 10¹⁷ for brute force) — dramatically better!</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============================================================
+     TAB: COMPARISON
+     ============================================================ -->
+<div id="tab-comparison" class="tab-content">
+  <div style="background:var(--bg-panel);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:0.85rem;color:var(--text-md)">Graph:</span>
+    <select id="cmpPreset" style="max-width:180px">
+      <option value="cycle4">4-Cycle</option>
+      <option value="cycle5">5-Cycle</option>
+      <option value="complete4">K₄ Complete</option>
+      <option value="complete5">K₅ Complete</option>
+    </select>
+    <button class="btn primary" onclick="runComparison()">▶ Play Both</button>
+    <button class="btn" id="cmpPauseBtn" onclick="cmpTogglePause()" disabled>Pause ⏸</button>
+    <button class="btn danger" id="cmpResetBtn" onclick="cmpReset()" disabled>Reset ↺</button>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:4px">
+      <span style="font-size:0.78rem;color:var(--text-md)">Speed</span>
+      <input type="range" id="cmpSpeedSlider" min="1" max="10" value="5" style="width:80px">
+      <span class="slider-val" id="cmpSpeedVal">5</span>
+    </div>
+    <span id="cmpStatus" style="font-size:0.78rem;color:var(--text-lo);margin-left:4px">Select a graph and click Play Both.</span>
+  </div>
+  <div class="compare-layout">
+    <div class="compare-col">
+      <div class="compare-header">
+        <h3 class="bf-color">🐢 Brute Force O(n!)</h3>
+        <span class="stat-val" id="bfOpCount">0 ops</span>
+      </div>
+      <div class="compare-svg-wrap">
+        <svg id="cmpBFSvg"></svg>
+      </div>
+      <div class="compare-info">
+        <div class="stat-row"><span>Result</span><span class="stat-val" id="bfResult">—</span></div>
+        <div class="stat-row"><span>Steps</span><span class="stat-val" id="bfSteps">—</span></div>
+        <div class="stat-row"><span>Time Complexity</span><span class="stat-val"style="color:var(--warn)">O(n!)</span></div>
+      </div>
+    </div>
+    <div class="compare-col">
+      <div class="compare-header">
+        <h3 class="dp-color">🚀 Held-Karp DP O(2ⁿ·n²)</h3>
+        <span class="stat-val" id="dpOpCount">0 ops</span>
+      </div>
+      <div class="compare-svg-wrap">
+        <svg id="cmpDPSvg"></svg>
+      </div>
+      <div class="compare-info">
+        <div class="stat-row"><span>Result</span><span class="stat-val" id="dpResult">—</span></div>
+        <div class="stat-row"><span>States</span><span class="stat-val" id="dpStates">—</span></div>
+        <div class="stat-row"><span>Time Complexity</span><span class="stat-val" style="color:var(--accent3)">O(2ⁿ·n²)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Growth Chart -->
+  <div class="growth-chart-wrap">
+    <div class="panel-label" style="margin-bottom:12px">Growth Comparison</div>
+    <canvas id="growthChart" height="120"></canvas>
+  </div>
+</div>
+
+<!-- ============================================================
+     TAB: REDUCTION ANIMATION
+     ============================================================ -->
+<div id="tab-reduction" class="tab-content">
+<div class="reduction-layout">
+
+  <div class="theory-h1" style="margin-bottom:4px">Reduction Animation</div>
+  <div class="theory-p" style="margin-bottom:16px">VERTEX-COVER ≤ₚ HAM-CYCLE — Step-by-Step Visual</div>
+
+  <div class="reduction-step-nav" id="redStepNav"></div>
+
+  <div class="reduction-canvas">
+    <svg id="reductionSVG" class="reduction-svg"></svg>
+  </div>
+  <div class="reduction-desc" id="reductionDesc">
+    Click a step above to see the reduction animation.
+  </div>
+
+  <div class="theory-box purple" style="margin-top:20px">
+    <div class="def-label">Why This Matters</div>
+    <div class="theory-p">This reduction shows that if we could solve HAM-CYCLE in polynomial time, we could also solve VERTEX-COVER in polynomial time. Since VERTEX-COVER is NP-Hard, HAM-CYCLE must be NP-Hard too. Combined with HAM-CYCLE ∈ NP, this proves HAM-CYCLE is NP-Complete.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============================================================
+     TAB: PERFORMANCE
+     ============================================================ -->
+<div id="tab-performance" class="tab-content">
+  <div style="padding:20px 24px">
+    <div class="theory-h1" style="margin-bottom:4px">Performance Analysis</div>
+    <div class="theory-p" style="margin-bottom:20px">Theoretical operation counts for both algorithms.</div>
+  </div>
+
+  <div class="perf-grid" id="perfGrid"></div>
+
+  <div class="growth-chart-wrap" style="max-width:800px;margin:0 auto">
+    <div class="panel-label" style="margin-bottom:12px">Operation Count vs. n (log scale)</div>
+    <canvas id="perfChart" height="200"></canvas>
+  </div>
+
+  <div style="max-width:800px;margin:0 auto;padding:0 24px 24px">
+    <div class="theory-box warn">
+      <div class="def-label">⚠️ Performance Warning</div>
+      <div class="theory-p">
+        <strong>Brute Force</strong> is only feasible for n ≤ 10 in practice (10! = 3.6M, but 12! = 479M). For n = 20, brute force is computationally infeasible even on modern supercomputers.<br><br>
+        <strong>Held-Karp DP</strong> is dramatically better — for n = 20, it requires roughly 4×10⁸ operations (vs 10¹⁸ for brute force), but still exponential. In practice, use heuristic/approximation algorithms for large instances.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="toast" id="toast"></div>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+/* ============================================================
+   GLOBAL STATE
+   ============================================================ */
+const state = {
+  nodes: [],       // { id, x, y, label }
+  edges: [],       // { u, v } (undirected)
+  adjMatrix: [],   // adjacency matrix
+  n: 0,
+  steps: [],       // precomputed animation steps
+  stepIndex: 0,
+  playing: false,
+  playTimer: null,
+  algo: 'brute',
+  interactMode: 'node',  // 'node' | 'edge'
+  pendingNode: null,     // for edge creation
+  ops: 0,
+};
+
+/* ============================================================
+   TAB SWITCHING
+   ============================================================ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'performance') renderPerfTab();
+  if (name === 'reduction') initReduction();
+  if (name === 'comparison') initComparison();
+}
+
+/* ============================================================
+   PRESET GRAPHS
+   ============================================================ */
+const PRESETS = {
+  cycle4: {
+    nodes: [0,1,2,3],
+    edges: [[0,1],[1,2],[2,3],[3,0]]
+  },
+  cycle5: {
+    nodes: [0,1,2,3,4],
+    edges: [[0,1],[1,2],[2,3],[3,4],[4,0]]
+  },
+  petersen: {
+    nodes: [0,1,2,3,4,5,6,7,8,9],
+    edges: [[0,1],[1,2],[2,3],[3,4],[4,0],[0,5],[1,6],[2,7],[3,8],[4,9],[5,7],[7,9],[9,6],[6,8],[8,5]]
+  },
+  complete4: {
+    nodes: [0,1,2,3],
+    edges: [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
+  },
+  complete5: {
+    nodes: [0,1,2,3,4],
+    edges: [[0,1],[0,2],[0,3],[0,4],[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]]
+  },
+  custom1: {
+    nodes: [0,1,2,3,4,5],
+    edges: [[0,1],[1,2],[2,0],[3,4],[4,5],[5,3],[0,3],[1,4]]
+  }
+};
+
+function loadPreset() {
+  const key = document.getElementById('presetSelect').value;
+  if (!key) return;
+  const p = PRESETS[key];
+  buildGraphFromData(p.nodes, p.edges);
+  resetViz(false);
+}
+
+function loadCustom() {
+  const rawNodes = document.getElementById('customNodes').value.split(',').map(s => s.trim()).filter(Boolean);
+  const nodeIds = rawNodes.map(Number);
+  const rawEdges = document.getElementById('customEdges').value.split(',').map(s => s.trim()).filter(Boolean);
+  const edges = rawEdges.map(s => s.split('-').map(Number));
+  buildGraphFromData(nodeIds, edges);
+  resetViz(false);
+}
+
+/* ============================================================
+   BUILD GRAPH FROM DATA
+   ============================================================ */
+function buildGraphFromData(nodeIds, edges) {
+  const svg = document.getElementById('graphSVG');
+  const W = svg.clientWidth || 600, H = svg.clientHeight || 400;
+  const cx = W / 2, cy = H / 2;
+  const r = Math.min(cx, cy) * 0.7;
+  const n = nodeIds.length;
+
+  state.nodes = nodeIds.map((id, i) => {
+    const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+    return { id, x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle), label: String(id) };
+  });
+  state.edges = edges.map(([u, v]) => ({ u, v }));
+  state.n = n;
+  buildAdjMatrix();
+  renderGraph();
+  updateStats();
+  onAlgoChange();
+}
+
+function buildAdjMatrix() {
+  const n = state.n;
+  state.adjMatrix = Array.from({length: n}, () => new Array(n).fill(0));
+  for (const {u, v} of state.edges) {
+    if (u < n && v < n) {
+      state.adjMatrix[u][v] = 1;
+      state.adjMatrix[v][u] = 1;
+    }
+  }
+}
+
+/* ============================================================
+   RANDOM GRAPH GENERATOR
+   ============================================================ */
+function generateRandom() {
+  const diff = document.getElementById('difficultySelect').value;
+  let nInput = parseInt(document.getElementById('nodeCount').value);
+  const pct = parseInt(document.getElementById('edgePct').value) / 100;
+
+  // Clamp to difficulty range
+  if (diff === 'small')  nInput = Math.min(Math.max(nInput, 4), 6);
+  if (diff === 'medium') nInput = Math.min(Math.max(nInput, 7), 9);
+  if (diff === 'large')  nInput = Math.min(Math.max(nInput, 10), 12);
+
+  const n = nInput;
+  const nodeIds = Array.from({length: n}, (_, i) => i);
+  const edges = [];
+
+  // Ensure connectivity by creating a random spanning path
+  const perm = shuffle([...nodeIds]);
+  for (let i = 0; i < n - 1; i++) edges.push([perm[i], perm[i+1]]);
+
+  // Add random extra edges
+  for (let u = 0; u < n; u++) {
+    for (let v = u + 1; v < n; v++) {
+      if (!edges.some(e => (e[0]===u&&e[1]===v)||(e[0]===v&&e[1]===u))) {
+        if (Math.random() < pct) edges.push([u, v]);
+      }
+    }
+  }
+
+  document.getElementById('nodeCount').value = n;
+  buildGraphFromData(nodeIds, edges);
+  resetViz(false);
+  showToast(`Generated random graph: ${n} nodes, ${edges.length} edges`, 'success');
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* ============================================================
+   SVG INTERACTIVE CLICK (Add Nodes/Edges)
+   ============================================================ */
+function svgClick(event) {
+  if (state.steps.length > 0) return; // don't allow editing during animation
+  const svg = document.getElementById('graphSVG');
+  const rect = svg.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  // Check if clicking on existing node
+  const clickedNode = getNodeAt(x, y);
+  if (clickedNode !== null) {
+    handleNodeClick(clickedNode);
+    return;
+  }
+
+  // Add new node
+  const id = state.nodes.length;
+  state.nodes.push({ id, x, y, label: String(id) });
+  state.n = state.nodes.length;
+  state.edges = state.edges.filter(e => e.u < state.n && e.v < state.n);
+  buildAdjMatrix();
+  renderGraph();
+  updateStats();
+  state.pendingNode = null;
+  onAlgoChange();
+}
+
+function getNodeAt(x, y) {
+  for (const node of state.nodes) {
+    const dx = node.x - x, dy = node.y - y;
+    if (Math.sqrt(dx*dx + dy*dy) < 20) return node.id;
+  }
+  return null;
+}
+
+function handleNodeClick(id) {
+  if (state.pendingNode === null) {
+    state.pendingNode = id;
+    highlightNodeTemporary(id);
+    showToast('Node ' + id + ' selected. Click another node to add edge.', '');
+  } else {
+    const u = state.pendingNode, v = id;
+    state.pendingNode = null;
+    if (u !== v && !state.edges.some(e => (e.u===u&&e.v===v)||(e.u===v&&e.v===u))) {
+      state.edges.push({u, v});
+      buildAdjMatrix();
+      renderGraph();
+      updateStats();
+      showToast(`Edge ${u}–${v} added`, 'success');
+    }
+  }
+}
+
+function highlightNodeTemporary(id) {
+  const el = document.getElementById('node-' + id);
+  if (el) el.classList.add('current');
+  setTimeout(() => { if (el) el.classList.remove('current'); }, 1500);
+}
+
+/* ============================================================
+   RENDER GRAPH (SVG)
+   ============================================================ */
+function renderGraph(edgeStates, nodeStates) {
+  const edgeGroup = document.getElementById('edgeGroup');
+  const nodeGroup = document.getElementById('nodeGroup');
+  edgeGroup.innerHTML = '';
+  nodeGroup.innerHTML = '';
+
+  // Draw edges
+  for (let i = 0; i < state.edges.length; i++) {
+    const {u, v} = state.edges[i];
+    const nu = state.nodes[u], nv = state.nodes[v];
+    if (!nu || !nv) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', nu.x); line.setAttribute('y1', nu.y);
+    line.setAttribute('x2', nv.x); line.setAttribute('y2', nv.y);
+    line.setAttribute('class', 'graph-edge');
+    if (edgeStates && edgeStates[i]) line.classList.add(edgeStates[i]);
+    line.setAttribute('id', 'edge-' + i);
+    edgeGroup.appendChild(line);
+  }
+
+  // Draw nodes
+  for (const node of state.nodes) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'graph-node');
+    g.setAttribute('id', 'node-' + node.id);
+    g.setAttribute('transform', `translate(${node.x},${node.y})`);
+    if (nodeStates && nodeStates[node.id]) g.classList.add(nodeStates[node.id]);
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('r', 18);
+    circle.setAttribute('onclick', `handleNodeClick(${node.id})`);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.textContent = node.label;
+
+    g.appendChild(circle);
+    g.appendChild(text);
+    nodeGroup.appendChild(g);
+  }
+}
+
+/* ============================================================
+   ALGORITHM: BRUTE FORCE
+   ============================================================ */
+function buildBruteForceSteps() {
+  const n = state.n;
+  const adj = state.adjMatrix;
+  const steps = [];
+  let ops = 0;
+
+  // Pseudocode lines
+  const pseudo = [
+    '// Brute Force Hamiltonian Cycle',
+    'fix start = 0',
+    'for each permutation P of {1,...,n-1}:',
+    '  path = [0] + P',
+    '  for i = 0 to n-2:',
+    '    if NOT edge(path[i], path[i+1]):',
+    '      mark as FAILED; continue',
+    '  if edge(path[n-1], path[0]):',
+    '    FOUND! return path',
+    'return NO_CYCLE',
+  ];
+
+  steps.push({
+    type: 'init', pseudo, pseudoLine: 0,
+    nodeStates: {}, edgeStates: {},
+    explanation: 'Starting Brute Force. We will fix node 0 as the start and try all permutations of remaining nodes.',
+    path: []
+  });
+
+  // Generate permutations of {1,...,n-1}
+  const perms = [];
+  function permute(arr, start = 0) {
+    if (start === arr.length) { perms.push([...arr]); return; }
+    for (let i = start; i < arr.length; i++) {
+      [arr[start], arr[i]] = [arr[i], arr[start]];
+      permute(arr, start + 1);
+      [arr[start], arr[i]] = [arr[i], arr[start]];
+    }
+  }
+  const others = Array.from({length: n - 1}, (_, i) => i + 1);
+  permute(others);
+
+  let found = false;
+
+  for (const perm of perms) {
+    const path = [0, ...perm];
+    ops++;
+
+    steps.push({
+      type: 'try_perm', pseudo, pseudoLine: 2,
+      nodeStates: { 0: 'start', [perm[0]]: 'current' },
+      edgeStates: {},
+      explanation: `Trying permutation: [${path.join(' → ')}]`,
+      path: [0]
+    });
+
+    let valid = true;
+    for (let i = 0; i < n - 1; i++) {
+      ops++;
+      const u = path[i], v = path[i + 1];
+      const edgeIdx = getEdgeIndex(u, v);
+      const nodeS = {};
+      for (let j = 0; j <= i; j++) nodeS[path[j]] = 'visited';
+      nodeS[path[i]] = 'visited';
+      nodeS[path[i+1]] = 'current';
+      nodeS[0] = 'start';
+
+      if (!adj[u][v]) {
+        // Edge does not exist — fail
+        const edgeS = {};
+        if (edgeIdx >= 0) edgeS[edgeIdx] = 'fail';
+        steps.push({
+          type: 'fail_edge', pseudo, pseudoLine: 5,
+          nodeStates: nodeS, edgeStates: edgeS,
+          explanation: `Edge (${u}, ${v}) does NOT exist. This permutation fails. Backtracking.`,
+          path: path.slice(0, i + 1)
+        });
+        valid = false;
+        break;
+      } else {
+        const edgeS = {};
+        for (let j = 0; j < i; j++) {
+          const ei = getEdgeIndex(path[j], path[j+1]);
+          if (ei >= 0) edgeS[ei] = 'path';
+        }
+        if (edgeIdx >= 0) edgeS[edgeIdx] = 'path';
+        steps.push({
+          type: 'edge_ok', pseudo, pseudoLine: 4,
+          nodeStates: nodeS, edgeStates: edgeS,
+          explanation: `Edge (${u}, ${v}) exists ✓. Extending path: [${path.slice(0, i+2).join(' → ')}]`,
+          path: path.slice(0, i + 2)
+        });
+      }
+    }
+
+    if (valid) {
+      ops++;
+      const backIdx = getEdgeIndex(path[n-1], 0);
+      if (adj[path[n-1]][0]) {
+        // FOUND
+        const nodeS = {}, edgeS = {};
+        path.forEach(id => nodeS[id] = 'done');
+        for (let j = 0; j < n - 1; j++) {
+          const ei = getEdgeIndex(path[j], path[j+1]);
+          if (ei >= 0) edgeS[ei] = 'done';
+        }
+        if (backIdx >= 0) edgeS[backIdx] = 'done';
+        steps.push({
+          type: 'found', pseudo, pseudoLine: 8,
+          nodeStates: nodeS, edgeStates: edgeS,
+          explanation: `🎉 Hamiltonian Cycle FOUND! Path: [${path.join(' → ')} → 0]. Return edge (${path[n-1]}, 0) exists ✓`,
+          path: [...path, 0]
+        });
+        found = true;
+        break;
+      } else {
+        const edgeS = {};
+        if (backIdx >= 0) edgeS[backIdx] = 'fail';
+        for (let j = 0; j < n - 1; j++) {
+          const ei = getEdgeIndex(path[j], path[j+1]);
+          if (ei >= 0) edgeS[ei] = 'path';
+        }
+        steps.push({
+          type: 'fail_return', pseudo, pseudoLine: 7,
+          nodeStates: { 0: 'start' },
+          edgeStates: edgeS,
+          explanation: `Return edge (${path[n-1]}, 0) does NOT exist. This permutation fails.`,
+          path: []
+        });
+      }
+    }
+  }
+
+  if (!found) {
+    steps.push({
+      type: 'no_cycle', pseudo, pseudoLine: 9,
+      nodeStates: {}, edgeStates: {},
+      explanation: '❌ No Hamiltonian Cycle found after checking all permutations.',
+      path: []
+    });
+  }
+
+  return { steps, ops };
+}
+
+/* ============================================================
+   ALGORITHM: HELD-KARP DP
+   ============================================================ */
+function buildHeldKarpSteps() {
+  const n = state.n;
+  const adj = state.adjMatrix;
+  const steps = [];
+  let ops = 0;
+
+  const pseudo = [
+    '// Held-Karp DP (Bitmask)',
+    'dp[{0}][0] = true  // base case',
+    'for S ⊆ V (in increasing size):',
+    '  for v ∈ S, v ≠ 0:',
+    '    for u ∈ S\\{v} where (u,v)∈E:',
+    '      dp[S][v] |= dp[S\\{v}][u]',
+    'full = (1<<n)-1',
+    'for v ∈ V, v ≠ 0:',
+    '  if dp[full][v] AND edge(v,0):',
+    '    FOUND! trace back path',
+    'return NO_CYCLE',
+  ];
+
+  // dp[mask][v] = true if we can reach v having visited exactly the nodes in mask
+  const dp = Array.from({length: 1 << n}, () => new Array(n).fill(false));
+  const parent = Array.from({length: 1 << n}, () => new Array(n).fill(-1));
+  dp[1][0] = true; // start at node 0, mask = {0} = 1
+
+  steps.push({
+    type: 'init', pseudo, pseudoLine: 1,
+    nodeStates: { 0: 'start' }, edgeStates: {},
+    explanation: 'Base case: dp[{0}][0] = true. We start at node 0.',
+    path: [0], dpHighlight: null
+  });
+
+  // Fill DP table
+  for (let mask = 1; mask < (1 << n); mask++) {
+    const bitsSet = countBits(mask);
+    for (let v = 0; v < n; v++) {
+      if (!(mask & (1 << v))) continue;
+      if (v === 0 && mask !== 1) continue;
+      if (!dp[mask][v]) continue;
+
+      for (let u = 0; u < n; u++) {
+        if (mask & (1 << u)) continue; // u already visited
+        if (!adj[v][u]) continue;
+        ops++;
+        const newMask = mask | (1 << u);
+        if (!dp[newMask][u]) {
+          dp[newMask][u] = true;
+          parent[newMask][u] = v;
+
+          const nodeS = {};
+          for (let i = 0; i < n; i++) if (newMask & (1 << i)) nodeS[i] = 'visited';
+          nodeS[u] = 'current';
+          nodeS[0] = 'start';
+          const edgeS = {};
+          const ei = getEdgeIndex(v, u);
+          if (ei >= 0) edgeS[ei] = 'path';
+
+          steps.push({
+            type: 'dp_update', pseudo, pseudoLine: 5,
+            nodeStates: nodeS, edgeStates: edgeS,
+            explanation: `dp[${maskStr(newMask, n)}][${u}] = true via node ${v}. We can reach node ${u} having visited set {${maskNodes(newMask, n)}}.`,
+            path: tracePath(parent, newMask, u, n),
+            dpHighlight: { mask: newMask, v: u }
+          });
+        }
+      }
+    }
+  }
+
+  // Check for Hamiltonian cycle
+  const fullMask = (1 << n) - 1;
+  let found = false;
+
+  steps.push({
+    type: 'check', pseudo, pseudoLine: 7,
+    nodeStates: {}, edgeStates: {},
+    explanation: `Full mask = ${maskStr(fullMask, n)} (all nodes visited). Now checking if any node v has dp[full][v]=true and edge (v,0) exists.`,
+    path: []
+  });
+
+  for (let v = 1; v < n; v++) {
+    if (dp[fullMask][v] && adj[v][0]) {
+      ops++;
+      // Trace back path
+      const path = tracePath(parent, fullMask, v, n);
+      const nodeS = {}, edgeS = {};
+      path.forEach(id => nodeS[id] = 'done');
+      for (let j = 0; j < path.length - 1; j++) {
+        const ei = getEdgeIndex(path[j], path[j+1]);
+        if (ei >= 0) edgeS[ei] = 'done';
+      }
+      const retEi = getEdgeIndex(v, 0);
+      if (retEi >= 0) edgeS[retEi] = 'done';
+
+      steps.push({
+        type: 'found', pseudo, pseudoLine: 9,
+        nodeStates: nodeS, edgeStates: edgeS,
+        explanation: `🎉 Hamiltonian Cycle FOUND! dp[all][${v}]=true and edge (${v},0) exists. Path: [${path.join(' → ')} → 0]`,
+        path: [...path, 0]
+      });
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    steps.push({
+      type: 'no_cycle', pseudo, pseudoLine: 10,
+      nodeStates: {}, edgeStates: {},
+      explanation: '❌ No Hamiltonian Cycle found. No complete state dp[all][v] has a return edge.',
+      path: []
+    });
+  }
+
+  return { steps, ops };
+}
+
+function tracePath(parent, mask, v, n) {
+  const path = [];
+  let curMask = mask, curV = v;
+  while (curV !== -1) {
+    path.unshift(curV);
+    const p = parent[curMask][curV];
+    if (p === -1) break;
+    curMask = curMask ^ (1 << curV);
+    curV = p;
+  }
+  return path;
+}
+
+function countBits(x) {
+  let c = 0; while (x) { c += x & 1; x >>= 1; } return c;
+}
+function maskStr(mask, n) {
+  const bits = [];
+  for (let i = 0; i < n; i++) if (mask & (1 << i)) bits.push(i);
+  return '{' + bits.join(',') + '}';
+}
+function maskNodes(mask, n) {
+  const bits = [];
+  for (let i = 0; i < n; i++) if (mask & (1 << i)) bits.push(i);
+  return bits.join(',');
+}
+
+/* ============================================================
+   EDGE INDEX HELPER
+   ============================================================ */
+function getEdgeIndex(u, v) {
+  return state.edges.findIndex(e => (e.u===u&&e.v===v)||(e.u===v&&e.v===u));
+}
+
+/* ============================================================
+   BUILD STEPS (Main Entry)
+   ============================================================ */
+function buildSteps() {
+  if (state.n < 2) { showToast('Please load a graph first.', 'error'); return; }
+  resetVizInner();
+
+  const algo = document.getElementById('algorithmSelect').value;
+  state.algo = algo;
+
+  const result = algo === 'brute' ? buildBruteForceSteps() : buildHeldKarpSteps();
+  state.steps = result.steps;
+  state.ops = result.ops;
+  state.stepIndex = 0;
+
+  // Render pseudocode
+  renderPseudo(state.steps[0].pseudo, -1);
+
+  // Enable buttons
+  document.getElementById('btnStep').disabled = false;
+  document.getElementById('btnPlay').disabled = false;
+  document.getElementById('btnPause').disabled = false;
+  document.getElementById('stepCounter').textContent = `0 / ${state.steps.length}`;
+  document.getElementById('opCounter').textContent = state.ops;
+  document.getElementById('algoDisplay').textContent = algo === 'brute' ? 'Brute Force' : 'Held-Karp';
+
+  setStatus('ready', 'Steps Built');
+  showToast(`${result.steps.length} steps built. Click Step or Play.`, 'success');
+
+  // Show DP table label if needed
+  if (algo === 'dp') {
+    document.getElementById('rightPanelLabel').textContent = 'DP State';
+  } else {
+    document.getElementById('rightPanelLabel').textContent = 'Current Path';
+  }
+}
+
+/* ============================================================
+   STEP FORWARD
+   ============================================================ */
+function stepForward() {
+  if (state.stepIndex >= state.steps.length) {
+    pausePlay();
+    return;
+  }
+  applyStep(state.steps[state.stepIndex]);
+  state.stepIndex++;
+  document.getElementById('stepCounter').textContent = `${state.stepIndex} / ${state.steps.length}`;
+
+  if (state.stepIndex >= state.steps.length) {
+    pausePlay();
+    setStatus(
+      state.steps[state.steps.length-1].type === 'found' ? 'found' : 'failed',
+      state.steps[state.steps.length-1].type === 'found' ? 'Cycle Found!' : 'No Cycle'
+    );
+  }
+}
+
+function applyStep(step) {
+  setStatus('running', 'Running...');
+  renderGraph(step.edgeStates || {}, step.nodeStates || {});
+  renderPseudo(step.pseudo, step.pseudoLine);
+  renderExplanation(step);
+  renderRightPanel(step);
+}
+
+/* ============================================================
+   PLAY / PAUSE
+   ============================================================ */
+function togglePlay() {
+  if (state.playing) { pausePlay(); return; }
+  state.playing = true;
+  document.getElementById('btnPlay').textContent = 'Playing ▷';
+  playLoop();
+}
+
+function playLoop() {
+  if (!state.playing) return;
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  const delay = Math.round(1200 / speed);
+  stepForward();
+  if (state.stepIndex < state.steps.length) {
+    state.playTimer = setTimeout(playLoop, delay);
+  } else {
+    pausePlay();
+  }
+}
+
+function pausePlay() {
+  state.playing = false;
+  clearTimeout(state.playTimer);
+  document.getElementById('btnPlay').textContent = 'Play ▷';
+}
+
+/* ============================================================
+   RESET
+   ============================================================ */
+function resetViz(clearGraph = false) {
+  pausePlay();
+  resetVizInner();
+  if (clearGraph) {
+    state.nodes = []; state.edges = []; state.n = 0;
+    buildAdjMatrix();
+    renderGraph();
+    updateStats();
+  } else {
+    renderGraph();
+  }
+  setStatus('', 'Ready');
+  document.getElementById('stepCounter').textContent = '0 / 0';
+  document.getElementById('opCounter').textContent = '0';
+  document.getElementById('stepExplanation').innerHTML = '<div class="step-tag">Idle</div><p>Select an algorithm, load a graph, then click <strong>Build Steps</strong>.</p>';
+  document.getElementById('rightPanel').innerHTML = '<div style="font-size:0.78rem;color:var(--text-lo)">No path computed yet.</div>';
+  renderPseudo([], -1);
+}
+
+function resetVizInner() {
+  state.steps = [];
+  state.stepIndex = 0;
+  state.playing = false;
+  clearTimeout(state.playTimer);
+  document.getElementById('btnStep').disabled = true;
+  document.getElementById('btnPlay').disabled = true;
+  document.getElementById('btnPause').disabled = true;
+}
+
+/* ============================================================
+   RENDER PSEUDOCODE
+   ============================================================ */
+function renderPseudo(lines, activeLine) {
+  const el = document.getElementById('pseudocode');
+  if (!lines || lines.length === 0) { el.innerHTML = '<div class="pseudo-line comment">// Load a graph and build steps</div>'; return; }
+  el.innerHTML = lines.map((line, i) => {
+    let cls = 'pseudo-line';
+    if (i === activeLine) cls += ' active';
+    if (line.trim().startsWith('//')) cls += ' comment';
+    return `<div class="${cls}">${escHtml(line)}</div>`;
+  }).join('');
+}
+
+/* ============================================================
+   RENDER STEP EXPLANATION
+   ============================================================ */
+function renderExplanation(step) {
+  const typeLabels = {
+    init: 'Initialize', try_perm: 'Try Permutation', fail_edge: 'Edge Fail',
+    edge_ok: 'Edge OK', fail_return: 'Return Fail', found: 'Cycle Found!',
+    no_cycle: 'No Cycle', dp_update: 'DP Update', check: 'Final Check'
+  };
+  const label = typeLabels[step.type] || step.type;
+  const html = `<div class="step-tag">${label}</div><p>${step.explanation.replace(/`([^`]+)`/g, '<strong>$1</strong>')}</p>`;
+  if (step.path && step.path.length > 0) {
+    document.getElementById('stepExplanation').innerHTML = html + `<p style="margin-top:6px;font-size:0.75rem;color:var(--text-lo)">Path: ${step.path.join(' → ')}</p>`;
+  } else {
+    document.getElementById('stepExplanation').innerHTML = html;
+  }
+}
+
+/* ============================================================
+   RENDER RIGHT PANEL (Path / DP)
+   ============================================================ */
+function renderRightPanel(step) {
+  const el = document.getElementById('rightPanel');
+  if (state.algo === 'dp' && step.dpHighlight) {
+    el.innerHTML = `
+      <div style="font-size:0.75rem;color:var(--text-md);margin-bottom:6px">
+        Current: <strong style="color:var(--accent)">dp[${maskStr(step.dpHighlight.mask, state.n)}][${step.dpHighlight.v}] = true</strong>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-lo)">
+        Visited set: {${maskNodes(step.dpHighlight.mask, state.n)}}<br>
+        Ending at node: ${step.dpHighlight.v}
+      </div>`;
+  } else if (step.path && step.path.length > 0) {
+    el.innerHTML = `<div style="font-family:var(--font-display);font-size:0.8rem;color:var(--accent)">${step.path.join(' → ')}</div>`;
+  } else {
+    el.innerHTML = '<div style="font-size:0.78rem;color:var(--text-lo)">No active path.</div>';
+  }
+}
+
+/* ============================================================
+   STATUS / STATS
+   ============================================================ */
+function setStatus(type, text) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot' + (type ? ' ' + type : '');
+  txt.textContent = text;
+}
+
+function updateStats() {
+  document.getElementById('nodeCountDisplay').textContent = state.n;
+  document.getElementById('edgeCountDisplay').textContent = state.edges.length;
+}
+
+function onAlgoChange() {
+  const algo = document.getElementById('algorithmSelect').value;
+  const warnEl = document.getElementById('perfWarn');
+  if (algo === 'brute' && state.n > 8) {
+    warnEl.classList.add('show');
+  } else {
+    warnEl.classList.remove('show');
+  }
+}
+
+/* ============================================================
+   SPEED SLIDER
+   ============================================================ */
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedVal').textContent = this.value;
+});
+
+/* ============================================================
+   DIFFICULTY PRESET SYNC
+   ============================================================ */
+document.getElementById('difficultySelect').addEventListener('change', function() {
+  const ranges = { small: 5, medium: 7, large: 10 };
+  document.getElementById('nodeCount').value = ranges[this.value];
+});
+
+/* ============================================================
+   COMPARISON TAB
+   ============================================================ */
+/* ============================================================
+   COMPARISON MODE — STEP-BASED ANIMATED STATE
+   ============================================================ */
+let cmpInitted = false;
+const cmp = {
+  bfSteps: [],      // precomputed BF step array
+  dpSteps: [],      // precomputed DP step array
+  nodeIds: [],      // node ids for the chosen graph
+  edges: [],        // edges for the chosen graph
+  positions: [],    // { id, x, y } for drawing
+  stepIndex: 0,     // shared step counter
+  maxSteps: 0,
+  playing: false,
+  paused: false,
+  timer: null,
+  bfOps: 0,
+  dpOps: 0,
+};
+
+function initComparison() {
+  if (!cmpInitted) {
+    drawGrowthChart();
+    document.getElementById('cmpSpeedSlider').addEventListener('input', function() {
+      document.getElementById('cmpSpeedVal').textContent = this.value;
+    });
+    cmpInitted = true;
+  }
+}
+
+/* Entry point — generate steps then start playback */
+function runComparison() {
+  cmpReset();   // stop any running animation and clear SVGs
+
+  const key = document.getElementById('cmpPreset').value;
+  const p = PRESETS[key];
+  const n = p.nodes.length;
+
+  /* ---- Temporarily swap global state so existing step-builders work ---- */
+  const savedState = {
+    nodes: state.nodes, edges: state.edges,
+    n: state.n, adjMatrix: state.adjMatrix
+  };
+
+  buildGraphFromData(p.nodes, p.edges);   // mutates global state
+
+  const bfResult = buildBruteForceSteps();
+  const dpResult = buildHeldKarpSteps();
+
+  /* ---- Restore global state immediately ---- */
+  state.nodes = savedState.nodes; state.edges = savedState.edges;
+  state.n = savedState.n; state.adjMatrix = savedState.adjMatrix;
+  renderGraph(); // redraw main visualizer graph
+
+  /* ---- Store comparison state ---- */
+  cmp.bfSteps   = bfResult.steps;
+  cmp.dpSteps   = dpResult.steps;
+  cmp.bfOps     = bfResult.ops;
+  cmp.dpOps     = dpResult.ops;
+  cmp.nodeIds   = p.nodes;
+  cmp.edges     = p.edges;
+  cmp.stepIndex = 0;
+  cmp.maxSteps  = Math.max(bfResult.steps.length, dpResult.steps.length);
+  cmp.playing   = false;
+  cmp.paused    = false;
+
+  /* Compute node positions for the comparison SVGs */
+  const bfSvg = document.getElementById('cmpBFSvg');
+  const W = bfSvg.clientWidth || 400, H = bfSvg.clientHeight || 300;
+  const cx = W / 2, cy = H / 2, r = Math.min(cx, cy) * 0.6;
+  cmp.positions = p.nodes.map((id, i) => {
+    const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+    return { id, x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  });
+
+  /* Update static stats */
+  document.getElementById('bfOpCount').textContent  = bfResult.ops + ' ops';
+  document.getElementById('dpOpCount').textContent  = dpResult.ops + ' ops';
+  document.getElementById('bfSteps').textContent    = bfResult.steps.length + ' steps';
+  document.getElementById('dpStates').textContent   = dpResult.steps.filter(s => s.type === 'dp_update').length + ' updates';
+  document.getElementById('bfResult').textContent   = '…';
+  document.getElementById('dpResult').textContent   = '…';
+  document.getElementById('cmpStatus').textContent  = `n=${n} — animating… (${cmp.maxSteps} total steps)`;
+
+  /* Draw empty graph as starting frame */
+  cmpDrawFrame('cmpBFSvg', null);
+  cmpDrawFrame('cmpDPSvg', null);
+
+  /* Enable controls */
+  document.getElementById('cmpPauseBtn').disabled = false;
+  document.getElementById('cmpResetBtn').disabled = false;
+  document.getElementById('cmpPauseBtn').textContent = 'Pause ⏸';
+
+  /* Start playback */
+  cmp.playing = true;
+  cmpPlayLoop();
+}
+
+/* Advance one shared step on both sides */
+function cmpTick() {
+  if (cmp.stepIndex >= cmp.maxSteps) {
+    cmpFinish();
+    return;
+  }
+
+  /* Render current step for each algorithm if still has steps */
+  if (cmp.stepIndex < cmp.bfSteps.length) {
+    cmpDrawFrame('cmpBFSvg', cmp.bfSteps[cmp.stepIndex]);
+  }
+  if (cmp.stepIndex < cmp.dpSteps.length) {
+    cmpDrawFrame('cmpDPSvg', cmp.dpSteps[cmp.stepIndex]);
+  }
+
+  /* Update step counter in status */
+  const shown = Math.min(cmp.stepIndex + 1, cmp.maxSteps);
+  document.getElementById('cmpStatus').textContent =
+    `Step ${shown} / ${cmp.maxSteps}  |  BF: ${Math.min(cmp.stepIndex + 1, cmp.bfSteps.length)} steps  |  DP: ${Math.min(cmp.stepIndex + 1, cmp.dpSteps.length)} states`;
+
+  cmp.stepIndex++;
+}
+
+function cmpPlayLoop() {
+  if (!cmp.playing || cmp.paused) return;
+  const speed = parseInt(document.getElementById('cmpSpeedSlider').value);
+  const delay = Math.round(1100 / speed);
+  cmpTick();
+  if (cmp.stepIndex < cmp.maxSteps) {
+    cmp.timer = setTimeout(cmpPlayLoop, delay);
+  } else {
+    cmpFinish();
+  }
+}
+
+function cmpFinish() {
+  cmp.playing = false;
+  clearTimeout(cmp.timer);
+
+  /* Show final frames */
+  const bfLast = cmp.bfSteps[cmp.bfSteps.length - 1];
+  const dpLast = cmp.dpSteps[cmp.dpSteps.length - 1];
+  if (bfLast) cmpDrawFrame('cmpBFSvg', bfLast);
+  if (dpLast) cmpDrawFrame('cmpDPSvg', dpLast);
+
+  const bfFound = bfLast?.type === 'found';
+  const dpFound = dpLast?.type === 'found';
+  document.getElementById('bfResult').textContent = bfFound ? '✅ Cycle Found' : '❌ No Cycle';
+  document.getElementById('dpResult').textContent = dpFound ? '✅ Cycle Found' : '❌ No Cycle';
+  document.getElementById('cmpStatus').textContent =
+    `Done! BF: ${cmp.bfSteps.length} steps (${cmp.bfOps} ops) — DP: ${cmp.dpSteps.length} steps (${cmp.dpOps} ops)`;
+  document.getElementById('cmpPauseBtn').textContent = 'Play ▷';
+}
+
+/* Toggle pause / resume */
+function cmpTogglePause() {
+  if (!cmp.bfSteps.length) return;
+  if (cmp.paused) {
+    // Resume
+    cmp.paused = false;
+    cmp.playing = true;
+    document.getElementById('cmpPauseBtn').textContent = 'Pause ⏸';
+    cmpPlayLoop();
+  } else if (cmp.playing) {
+    // Pause
+    cmp.paused = true;
+    cmp.playing = false;
+    clearTimeout(cmp.timer);
+    document.getElementById('cmpPauseBtn').textContent = 'Resume ▷';
+  } else {
+    // Finished — replay
+    cmp.stepIndex = 0;
+    cmp.playing = true;
+    cmp.paused = false;
+    document.getElementById('bfResult').textContent = '…';
+    document.getElementById('dpResult').textContent = '…';
+    document.getElementById('cmpPauseBtn').textContent = 'Pause ⏸';
+    cmpPlayLoop();
+  }
+}
+
+/* Reset comparison to blank state */
+function cmpReset() {
+  clearTimeout(cmp.timer);
+  cmp.playing = false;
+  cmp.paused  = false;
+  cmp.stepIndex = 0;
+  cmp.bfSteps = [];
+  cmp.dpSteps = [];
+  document.getElementById('cmpBFSvg').innerHTML = '';
+  document.getElementById('cmpDPSvg').innerHTML = '';
+  document.getElementById('bfOpCount').textContent = '0 ops';
+  document.getElementById('dpOpCount').textContent = '0 ops';
+  document.getElementById('bfResult').textContent  = '—';
+  document.getElementById('dpResult').textContent  = '—';
+  document.getElementById('bfSteps').textContent   = '—';
+  document.getElementById('dpStates').textContent  = '—';
+  document.getElementById('cmpStatus').textContent = 'Select a graph and click Play Both.';
+  document.getElementById('cmpPauseBtn').textContent = 'Pause ⏸';
+  document.getElementById('cmpPauseBtn').disabled = true;
+  document.getElementById('cmpResetBtn').disabled = true;
+}
+
+/* Draw one frame onto a comparison SVG using a step's edgeStates / nodeStates */
+function cmpDrawFrame(svgId, step) {
+  const svg = document.getElementById(svgId);
+  svg.innerHTML = '';
+  const positions = cmp.positions;
+  const edges     = cmp.edges;
+  if (!positions || positions.length === 0) return;
+
+  /* Edges */
+  for (let i = 0; i < edges.length; i++) {
+    const [u, v] = edges[i];
+    const nu = positions[u], nv = positions[v];
+    if (!nu || !nv) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', nu.x); line.setAttribute('y1', nu.y);
+    line.setAttribute('x2', nv.x); line.setAttribute('y2', nv.y);
+    let cls = 'graph-edge';
+    if (step && step.edgeStates && step.edgeStates[i]) cls += ' ' + step.edgeStates[i];
+    line.setAttribute('class', cls);
+    svg.appendChild(line);
+  }
+
+  /* Nodes */
+  for (const pos of positions) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    let cls = 'graph-node';
+    if (step && step.nodeStates && step.nodeStates[pos.id]) cls += ' ' + step.nodeStates[pos.id];
+    g.setAttribute('class', cls);
+    g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('r', 16);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.textContent = pos.id;
+    g.appendChild(circle); g.appendChild(text);
+    svg.appendChild(g);
+  }
+}
+
+
+
+function drawGrowthChart() {
+  const canvas = document.getElementById('growthChart');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.parentElement.clientWidth - 48;
+  canvas.height = 120;
+  const W = canvas.width, H = canvas.height;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(0, 0, W, H);
+
+  const ns = [3,4,5,6,7,8,9,10,11,12];
+  const bfOps = ns.map(n => factorial(n));
+  const dpOps = ns.map(n => Math.pow(2,n) * n * n);
+  const maxOp = Math.max(...bfOps.filter(v => isFinite(v)));
+
+  const xScale = (W - 60) / (ns.length - 1);
+  const yScale = (H - 40) / Math.log10(maxOp + 1);
+
+  // Grid lines
+  ctx.strokeStyle = '#1e2d45'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H - 30 - i * (H - 40) / 5;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(W - 10, y); ctx.stroke();
+  }
+
+  // BF line
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ns.forEach((n, i) => {
+    const x = 40 + i * xScale;
+    const y = H - 30 - Math.log10(bfOps[i] + 1) * yScale;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // DP line
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ns.forEach((n, i) => {
+    const x = 40 + i * xScale;
+    const y = H - 30 - Math.log10(dpOps[i] + 1) * yScale;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // X axis labels
+  ctx.fillStyle = '#4a5a72'; ctx.font = '10px monospace';
+  ns.forEach((n, i) => {
+    const x = 40 + i * xScale;
+    ctx.fillText('n=' + n, x - 12, H - 5);
+  });
+
+  // Legend
+  ctx.fillStyle = '#f59e0b'; ctx.fillRect(W - 140, 10, 14, 10);
+  ctx.fillStyle = '#8fa3c0'; ctx.fillText('Brute O(n!)', W - 120, 20);
+  ctx.fillStyle = '#10b981'; ctx.fillRect(W - 140, 26, 14, 10);
+  ctx.fillStyle = '#8fa3c0'; ctx.fillText('DP O(2ⁿn²)', W - 120, 36);
+}
+
+function factorial(n) {
+  if (n <= 1) return 1;
+  let f = 1; for (let i = 2; i <= n; i++) f *= i; return f;
+}
+
+/* ============================================================
+   PERFORMANCE TAB
+   ============================================================ */
+function renderPerfTab() {
+  const ns = [4, 6, 8, 10, 12];
+  const grid = document.getElementById('perfGrid');
+  grid.innerHTML = ns.map(n => {
+    const bf = factorial(n - 1);
+    const dp = Math.pow(2, n) * n * n;
+    return `<div class="perf-card">
+      <div class="big-num">n=${n}</div>
+      <div class="big-label">nodes</div>
+      <div class="big-sub" style="color:var(--warn)">Brute: ${formatNum(bf)}</div>
+      <div class="big-sub" style="color:var(--accent3)">DP: ${formatNum(dp)}</div>
+      <div class="big-sub" style="color:var(--text-lo)">Ratio: ×${formatNum(Math.round(bf/dp))}</div>
+    </div>`;
+  }).join('');
+
+  const canvas = document.getElementById('perfChart');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.parentElement.clientWidth - 48;
+  canvas.height = 200;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#111827'; ctx.fillRect(0, 0, W, H);
+
+  const allNs = [3,4,5,6,7,8,9,10,11,12];
+  const bfData = allNs.map(n => Math.log10(factorial(n) + 1));
+  const dpData = allNs.map(n => Math.log10(Math.pow(2,n) * n * n + 1));
+  const maxY = Math.max(...bfData.filter(isFinite));
+
+  const xScale = (W - 60) / (allNs.length - 1);
+  const yScale = (H - 50) / maxY;
+
+  ctx.strokeStyle = '#1e2d45'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 6; i++) {
+    const y = H - 40 - i * (H - 50) / 6;
+    ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(W - 10, y); ctx.stroke();
+    ctx.fillStyle = '#4a5a72'; ctx.font = '9px monospace';
+    ctx.fillText('10^' + Math.round(i * maxY / 6), 2, y + 3);
+  }
+
+  function drawLine(data, color) {
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath();
+    allNs.forEach((n, i) => {
+      const x = 50 + i * xScale;
+      const y = H - 40 - data[i] * yScale;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Dots
+    allNs.forEach((n, i) => {
+      const x = 50 + i * xScale;
+      const y = H - 40 - data[i] * yScale;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
+    });
+  }
+
+  drawLine(bfData, '#f59e0b');
+  drawLine(dpData, '#10b981');
+
+  ctx.fillStyle = '#4a5a72'; ctx.font = '10px monospace';
+  allNs.forEach((n, i) => {
+    const x = 50 + i * xScale;
+    ctx.fillText('n=' + n, x - 12, H - 8);
+  });
+
+  ctx.fillStyle = '#f59e0b'; ctx.fillRect(W - 150, 10, 12, 10);
+  ctx.fillStyle = '#8fa3c0'; ctx.fillText('Brute Force O(n!)', W - 132, 20);
+  ctx.fillStyle = '#10b981'; ctx.fillRect(W - 150, 28, 12, 10);
+  ctx.fillStyle = '#8fa3c0'; ctx.fillText('Held-Karp O(2ⁿn²)', W - 132, 38);
+}
+
+function formatNum(n) {
+  if (!isFinite(n)) return '∞';
+  if (n >= 1e15) return (n / 1e15).toFixed(1) + 'Q';
+  if (n >= 1e12) return (n / 1e12).toFixed(1) + 'T';
+  if (n >= 1e9)  return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6)  return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3)  return (n / 1e3).toFixed(1) + 'K';
+  return String(n);
+}
+
+/* ============================================================
+   REDUCTION ANIMATION
+   ============================================================ */
+const REDUCTION_STEPS = [
+  {
+    title: '1. Original VC Instance',
+    desc: 'Given: Graph G with vertices {A, B, C, D} and edges {A-B, B-C, C-D, A-D}. Question: Does G have a Vertex Cover of size k=2?',
+    draw: (svg, W, H) => {
+      const nodes = [
+        { id: 'A', x: W*0.25, y: H*0.35, label: 'A' },
+        { id: 'B', x: W*0.55, y: H*0.25, label: 'B' },
+        { id: 'C', x: W*0.75, y: H*0.55, label: 'C' },
+        { id: 'D', x: W*0.25, y: H*0.65, label: 'D' }
+      ];
+      const edges = [['A','B'],['B','C'],['C','D'],['A','D']];
+      drawSimpleGraph(svg, nodes, edges, '#1e3a5f', '#1e2d45', 'Original Graph G (VC)');
+    }
+  },
+  {
+    title: '2. Add k Selector Nodes',
+    desc: 'Add k=2 selector nodes s₁ and s₂. These represent the 2 vertices we will choose for the vertex cover. They will be connected in a path.',
+    draw: (svg, W, H) => {
+      const nodes = [
+        { id: 'A', x: W*0.2, y: H*0.4, label: 'A' },
+        { id: 'B', x: W*0.45, y: H*0.25, label: 'B' },
+        { id: 'C', x: W*0.7, y: H*0.4, label: 'C' },
+        { id: 'D', x: W*0.2, y: H*0.7, label: 'D' },
+        { id: 's1', x: W*0.55, y: H*0.7, label: 's₁', color: '#7c3aed' },
+        { id: 's2', x: W*0.8, y: H*0.7, label: 's₂', color: '#7c3aed' }
+      ];
+      const edges = [['A','B'],['B','C'],['C','D'],['A','D'],['s1','s2']];
+      drawSimpleGraph(svg, nodes, edges, '#1e3a5f', '#1e2d45', 'G\' with Selector Nodes (purple)');
+    }
+  },
+  {
+    title: '3. Create Edge Gadgets',
+    desc: 'For each edge in G, create a cover gadget. The gadget for edge (u,v) ensures the HC must "pick" u or v as a cover vertex. This is the core of the construction.',
+    draw: (svg, W, H) => {
+      svg.innerHTML = '';
+      addText(svg, W/2, 20, 'Edge Gadget for (A, B)', '#00c8ff', '0.8rem', 'middle');
+      // Draw a simplified gadget
+      const gadgetNodes = [
+        {x: W*0.15, y: H*0.4, l: 'a₀'}, {x: W*0.25, y: H*0.3, l: 'a₁'},
+        {x: W*0.35, y: H*0.4, l: 'a₂'}, {x: W*0.45, y: H*0.3, l: 'a₃'},
+        {x: W*0.55, y: H*0.4, l: 'a₄'}, {x: W*0.65, y: H*0.3, l: 'a₅'},
+        {x: W*0.15, y: H*0.6, l: 'b₀'}, {x: W*0.25, y: H*0.7, l: 'b₁'},
+        {x: W*0.35, y: H*0.6, l: 'b₂'}, {x: W*0.45, y: H*0.7, l: 'b₃'},
+        {x: W*0.55, y: H*0.6, l: 'b₄'}, {x: W*0.65, y: H*0.7, l: 'b₅'}
+      ];
+      const gadgetEdges = [[0,1],[1,2],[2,3],[3,4],[4,5],[6,7],[7,8],[8,9],[9,10],[10,11],
+                           [0,6],[1,7],[2,8],[3,9],[4,10],[5,11]];
+      for (const [i,j] of gadgetEdges) {
+        drawSvgLine(svg, gadgetNodes[i].x, gadgetNodes[i].y, gadgetNodes[j].x, gadgetNodes[j].y, '#1e3a5f', 1.5);
+      }
+      for (const gn of gadgetNodes) {
+        drawSvgCircle(svg, gn.x, gn.y, 12, '#1e3a5f', '#1e4d7b');
+        addText(svg, gn.x, gn.y, gn.l, '#8fa3c0', '0.55rem', 'middle');
+      }
+      // Labels
+      addText(svg, W*0.15, H*0.2, 'A-side', '#00c8ff', '0.75rem', 'middle');
+      addText(svg, W*0.15, H*0.85, 'B-side', '#a78bfa', '0.75rem', 'middle');
+      addText(svg, W*0.82, H*0.5, '← from selector', '#4a5a72', '0.7rem', 'middle');
+    }
+  },
+  {
+    title: '4. Connect Selectors to Gadgets',
+    desc: 'Selector nodes s₁ and s₂ are connected to the entry/exit points of all gadgets. This forces the HC to visit every gadget through one of the k selectors.',
+    draw: (svg, W, H) => {
+      svg.innerHTML = '';
+      addText(svg, W/2, 22, 'Selectors connected to Gadget endpoints', '#00c8ff', '0.8rem', 'middle');
+      // Selectors
+      drawSvgCircle(svg, W*0.12, H*0.5, 20, '#7c3aed', '#4c1d95');
+      addText(svg, W*0.12, H*0.5, 's₁', '#f0f6ff', '0.8rem', 'middle');
+      drawSvgCircle(svg, W*0.88, H*0.5, 20, '#7c3aed', '#4c1d95');
+      addText(svg, W*0.88, H*0.5, 's₂', '#f0f6ff', '0.8rem', 'middle');
+
+      // Gadget boxes (simplified)
+      const gadgets = [
+        { x: W*0.35, y: H*0.25, label: 'Gadget(A,B)' },
+        { x: W*0.55, y: H*0.5, label: 'Gadget(B,C)' },
+        { x: W*0.35, y: H*0.75, label: 'Gadget(C,D)' },
+      ];
+      for (const g of gadgets) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', g.x - 55); rect.setAttribute('y', g.y - 18);
+        rect.setAttribute('width', 110); rect.setAttribute('height', 36);
+        rect.setAttribute('rx', 6); rect.setAttribute('fill', '#1e3a5f');
+        rect.setAttribute('stroke', '#2e4a72'); rect.setAttribute('stroke-width', 1.5);
+        svg.appendChild(rect);
+        addText(svg, g.x, g.y + 5, g.label, '#8fa3c0', '0.72rem', 'middle');
+
+        // Connect to selectors
+        drawSvgLine(svg, W*0.12, H*0.5, g.x - 55, g.y, '#7c3aed', 1, 'dashed');
+        drawSvgLine(svg, W*0.88, H*0.5, g.x + 55, g.y, '#7c3aed', 1, 'dashed');
+      }
+    }
+  },
+  {
+    title: '5. Forward: VC → Ham Cycle',
+    desc: 'If G has vertex cover S = {A, C} (size 2), then in G\': s₁ covers vertex A\'s gadgets, s₂ covers C\'s gadgets. The HC traverses all gadgets via the correct selectors. Every gadget is covered since A and C form a cover.',
+    draw: (svg, W, H) => {
+      svg.innerHTML = '';
+      addText(svg, W/2, 22, 'Forward: Cover {A, C} → Hamiltonian Cycle in G\'', '#10b981', '0.8rem', 'middle');
+      const nodes = [
+        { id: 'A', x: W*0.2, y: H*0.35, label: 'A', col: '#10b981' },
+        { id: 'B', x: W*0.5, y: H*0.2, label: 'B', col: '#1e3a5f' },
+        { id: 'C', x: W*0.8, y: H*0.35, label: 'C', col: '#10b981' },
+        { id: 'D', x: W*0.5, y: H*0.5, label: 'D', col: '#1e3a5f' },
+        { id: 's1', x: W*0.3, y: H*0.75, label: 's₁→A', col: '#7c3aed' },
+        { id: 's2', x: W*0.7, y: H*0.75, label: 's₂→C', col: '#7c3aed' }
+      ];
+      const edges = [['A','B'],['B','C'],['C','D'],['A','D'],['s1','s2'],['A','s1'],['C','s2']];
+      for (const [u,v] of edges) {
+        const nu = nodes.find(n=>n.id===u), nv = nodes.find(n=>n.id===v);
+        drawSvgLine(svg, nu.x, nu.y, nv.x, nv.y, '#10b981', 2);
+      }
+      for (const node of nodes) {
+        drawSvgCircle(svg, node.x, node.y, 20, node.col, node.col === '#10b981' ? '#065f46' : '#1e3a5f');
+        addText(svg, node.x, node.y+1, node.label, '#f0f6ff', '0.7rem', 'middle');
+      }
+      addText(svg, W*0.5, H*0.93, '✓ Green nodes = vertex cover = selectors in Ham. Cycle', '#10b981', '0.72rem', 'middle');
+    }
+  },
+  {
+    title: '6. Backward: Ham Cycle → VC',
+    desc: 'If G\' has a Hamiltonian Cycle H, then each selector sᵢ commits to one side of each gadget. Collecting the committed vertices gives k vertices. The gadget structure guarantees every edge of G is "covered". Hence a vertex cover of size k exists in G.',
+    draw: (svg, W, H) => {
+      svg.innerHTML = '';
+      addText(svg, W/2, 22, 'Backward: Ham. Cycle in G\' → Vertex Cover in G', '#a78bfa', '0.8rem', 'middle');
+      const flow = [
+        { x: W*0.15, y: H*0.5, label: 'Ham Cycle\nin G\'' },
+        { x: W*0.38, y: H*0.5, label: 'Selector sᵢ\nchooses side' },
+        { x: W*0.62, y: H*0.5, label: 'Extract k\nvertices' },
+        { x: W*0.85, y: H*0.5, label: 'Vertex Cover\nof size k in G' },
+      ];
+      for (let i = 0; i < flow.length; i++) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', flow[i].x - 50); rect.setAttribute('y', flow[i].y - 25);
+        rect.setAttribute('width', 100); rect.setAttribute('height', 50);
+        rect.setAttribute('rx', 8); rect.setAttribute('fill', '#111827');
+        rect.setAttribute('stroke', i===3 ? '#10b981' : '#2e4a72'); rect.setAttribute('stroke-width', 1.5);
+        svg.appendChild(rect);
+        const parts = flow[i].label.split('\n');
+        addText(svg, flow[i].x, flow[i].y - 5, parts[0], '#f0f6ff', '0.72rem', 'middle');
+        if (parts[1]) addText(svg, flow[i].x, flow[i].y + 12, parts[1], '#8fa3c0', '0.68rem', 'middle');
+
+        if (i < flow.length - 1) {
+          drawSvgLine(svg, flow[i].x + 50, flow[i].y, flow[i+1].x - 50, flow[i+1].y, '#a78bfa', 1.5);
+          addText(svg, (flow[i].x + flow[i+1].x) / 2, flow[i].y - 12, '→', '#a78bfa', '0.9rem', 'middle');
+        }
+      }
+      addText(svg, W*0.5, H*0.85, '⟹ VERTEX-COVER ≤ₚ HAM-CYCLE', '#a78bfa', '0.82rem', 'middle');
+    }
+  }
+];
+
+function initReduction() {
+  const nav = document.getElementById('redStepNav');
+  nav.innerHTML = REDUCTION_STEPS.map((s, i) =>
+    `<button class="red-btn ${i===0?'active':''}" onclick="showReductionStep(${i}, this)">${s.title}</button>`
+  ).join('');
+  showReductionStep(0, nav.children[0]);
+}
+
+function showReductionStep(idx, btn) {
+  document.querySelectorAll('.red-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const step = REDUCTION_STEPS[idx];
+  const svg = document.getElementById('reductionSVG');
+  svg.innerHTML = '';
+  const W = svg.clientWidth || 700, H = 280;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  step.draw(svg, W, H);
+  document.getElementById('reductionDesc').innerHTML =
+    `<strong>${step.title}</strong><br>${step.desc}`;
+}
+
+/* SVG helpers for reduction */
+function drawSimpleGraph(svg, nodes, edges, nodeColor, edgeColor, title) {
+  if (title) addText(svg, svg.clientWidth/2||350, 20, title, '#00c8ff', '0.8rem', 'middle');
+  for (const [u, v] of edges) {
+    const nu = nodes.find(n=>n.id===u), nv = nodes.find(n=>n.id===v);
+    if (nu && nv) drawSvgLine(svg, nu.x, nu.y, nv.x, nv.y, edgeColor, 1.5);
+  }
+  for (const node of nodes) {
+    drawSvgCircle(svg, node.x, node.y, 20, node.color || nodeColor, '#0b1829');
+    addText(svg, node.x, node.y+1, node.label, '#f0f6ff', '0.8rem', 'middle');
+  }
+}
+function drawSvgLine(svg, x1, y1, x2, y2, color, width=1.5, style='') {
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+  line.setAttribute('stroke', color); line.setAttribute('stroke-width', width);
+  if (style === 'dashed') line.setAttribute('stroke-dasharray', '5,4');
+  svg.appendChild(line);
+}
+function drawSvgCircle(svg, cx, cy, r, fill, stroke='#2e4a72') {
+  const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+  c.setAttribute('fill', fill); c.setAttribute('stroke', stroke); c.setAttribute('stroke-width', 2);
+  svg.appendChild(c); return c;
+}
+function addText(svg, x, y, text, color, size='0.75rem', anchor='start') {
+  const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  t.setAttribute('x', x); t.setAttribute('y', y);
+  t.setAttribute('fill', color); t.setAttribute('font-size', size);
+  t.setAttribute('text-anchor', anchor); t.setAttribute('dominant-baseline', 'central');
+  t.textContent = text; svg.appendChild(t); return t;
+}
+
+/* ============================================================
+   COLLAPSIBLE
+   ============================================================ */
+function toggleCollapsible(btn) {
+  btn.classList.toggle('open');
+  const body = btn.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+/* ============================================================
+   TOAST NOTIFICATION
+   ============================================================ */
+function showToast(msg, type='') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ============================================================
+   INITIALIZATION
+   ============================================================ */
+window.addEventListener('load', () => {
+  // Load default preset
+  document.getElementById('presetSelect').value = 'cycle4';
+  loadPreset();
+  renderPseudo([], -1);
+
+  // Draw initial growth chart
+  setTimeout(() => {
+    if (document.getElementById('tab-comparison').classList.contains('active')) initComparison();
+  }, 100);
+});
+
+// Handle window resize for graph redraw
+window.addEventListener('resize', () => {
+  if (state.nodes.length > 0) renderGraph();
+});
+</script>
+</body>
+</html>
